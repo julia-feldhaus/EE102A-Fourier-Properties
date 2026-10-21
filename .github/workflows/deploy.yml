@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install marimo
+      - run: pip install marimo uv
       - run: marimo export html-wasm fourier_properties.py -o _site --mode run
       - uses: actions/upload-pages-artifact@v3
         with:
