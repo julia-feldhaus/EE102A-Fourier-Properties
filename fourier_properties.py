@@ -519,13 +519,13 @@ def _(integrate, mo, np, plt, rect, rect_ft, ry_band, ry_width):
 
     _ax[0].fill_between(_t, rect(_t, _T) ** 2, color="C0", alpha=0.4)
     _ax[0].plot(_t, rect(_t, _T) ** 2, color="C0")
-    _ax[0].set_title(rf"$|x(t)|^2$: area = {_E_time:.3f}")
+    _ax[0].set_ylabel(r"$|x(t)|^2$")
     _ax[0].set_xlabel("t (s)")
     _ax[0].set_ylim(-0.1, 1.3)
 
     _ax[1].plot(_f, rect_ft(_f, _T) ** 2, color="C3")
     _ax[1].fill_between(_f, rect_ft(_f, _T) ** 2, where=np.abs(_f) <= _B, color="C3", alpha=0.4)
-    _ax[1].set_title(rf"$|X(f)|^2$: shaded = energy in $|f|\leq B$ = {_E_band:.3f}")
+    _ax[1].set_ylabel(r"$|X(f)|^2$")
     _ax[1].set_xlabel("f (Hz)")
     _ax[1].set_ylim(-0.5, 16.5)
 
