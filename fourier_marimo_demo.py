@@ -14,9 +14,9 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md(r"""# EE102A: Fourier transforms and filtering
+    mo.output.replace(mo.md(r"""# EE102A: Fourier transforms and filtering
     Explore the properties interactively. Frequency uses **Hz**, with
-    $X(f)=\int x(t)e^{-j2\pi ft}\,dt$.""")
+    $X(f)=\int x(t)e^{-j2\pi ft}\,dt$."""))
     return
 
 @app.cell
@@ -27,7 +27,7 @@ def _(mo):
     cutoff = mo.ui.slider(0.5, 9, step=0.5, value=3, label="Filter cutoff (Hz)")
     kind = mo.ui.dropdown(options=["Low-pass", "High-pass", "Band-pass"], value="Low-pass", label="Filter type")
     ywidth = mo.ui.slider(0.2, 4, step=0.1, value=1, label="2D y-width")
-    mo.vstack([concept, mo.hstack([width, shift, cutoff]), mo.hstack([kind, ywidth])])
+    mo.output.replace(mo.vstack([concept, mo.hstack([width, shift, cutoff]), mo.hstack([kind, ywidth])]))
     return concept, width, shift, cutoff, kind, ywidth
 
 @app.cell
