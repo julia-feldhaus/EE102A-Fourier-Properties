@@ -28,7 +28,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install marimo
-        run: pip install marimo numpy matplotlib
+        run: pip install marimo numpy matplotlib uv
 
       - name: Export interactive demo
         run: |
