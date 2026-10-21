@@ -20,7 +20,7 @@ def _():
 def _(mo):
     mo.md(
         r"""
-        # EE102A: Fourier Transforms and Filtering
+        # EE102A: Fourier Transform Properties
 
         Explore the properties of the Fourier transform interactively.
         Frequency is measured in **Hz**, and we use the convention
@@ -29,7 +29,7 @@ def _(mo):
         \qquad
         x(t) = \int_{-\infty}^{\infty} X(f)\, e^{j2\pi f t}\, df .$$
 
-        Throughout the notebook, the basic test signal is a **rectangular pulse** of width $T$:
+        The main test signal is a **rectangular pulse** of width $T$:
 
         $$x(t) = \mathrm{rect}\!\left(\frac{t}{T}\right) =
         \begin{cases} 1 & |t| \le T/2 \\ 0 & \text{otherwise} \end{cases}
@@ -39,7 +39,7 @@ def _(mo):
         **How to use this page:** read the definition, move the sliders, and compare
         what you see against the *"What to observe"* box at the end of each section.
 
-        Sections: 1. Time-shift · 2. Frequency-shift · 3. Scaling · 4. Filtering · 5. 2D transform
+        Sections: 1. Addition (linearity) · 2. Scaling · 3. Time shift · 4. Frequency shift · 5. Rayleigh's theorem
         """
     )
     return
@@ -55,18 +55,231 @@ def _(np):
         """Fourier transform of rect(t/T):  T * sinc(f T)."""
         return T * np.sinc(f * T)
 
-    return rect, rect_ft
+    def tri(t, W):
+        """Triangular pulse with peak 1 and base from -W to W."""
+        return np.clip(1 - np.abs(t) / W, 0, None)
+
+    def tri_ft(f, W):
+        """Fourier transform of tri(t, W):  W * sinc^2(f W)."""
+        return W * np.sinc(f * W) ** 2
+
+    def integrate(y, x):
+        """Trapezoid-rule integral of y over x."""
+        return float(np.sum((y[1:] + y[:-1]) * np.diff(x)) / 2)
+
+    return integrate, rect, rect_ft, tri, tri_ft
 
 
 # ---------------------------------------------------------------------------
-# 1. Time-shift theorem
+# 1. Addition (linearity)
 # ---------------------------------------------------------------------------
 @app.cell
 def _(mo):
     mo.md(
         r"""
         ---
-        ## 1. Time-shift theorem
+        ## 1. Addition (linearity)
+
+        **Definition.** The Fourier transform of a weighted sum of signals is the same weighted sum
+        of their transforms:
+
+        $$a\,x_1(t) + b\,x_2(t) \;\Longleftrightarrow\; a\,X_1(f) + b\,X_2(f)$$
+
+        **Why?** The transform is an integral, and integrals are linear:
+
+        $$\int \big[a x_1(t) + b x_2(t)\big]e^{-j2\pi f t}dt
+        = a\!\int x_1(t)e^{-j2\pi f t}dt + b\!\int x_2(t)e^{-j2\pi f t}dt.$$
+
+        **Signals used here:**
+
+        - $x_1(t) = \mathrm{rect}(t)$ (width 1), with $X_1(f) = \mathrm{sinc}(f)$
+        - $x_2(t) = \mathrm{tri}(t)$ (triangle, base from $-1$ to $1$, peak 1), with $X_2(f) = \mathrm{sinc}^2(f)$
+
+        The dots in the right-hand plot are a **direct numerical** Fourier transform of the sum $y(t)$,
+        computed without using the formula, so you can check the property yourself.
+        """
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    ad_a = mo.ui.slider(-2.0, 2.0, step=0.1, value=1.0, label="Coefficient a (on rectangle)", show_value=True)
+    ad_b = mo.ui.slider(-2.0, 2.0, step=0.1, value=0.5, label="Coefficient b (on triangle)", show_value=True)
+    mo.hstack([ad_a, ad_b], justify="start", gap=2)
+    return ad_a, ad_b
+
+
+@app.cell
+def _(ad_a, ad_b, np, plt, rect, rect_ft, tri, tri_ft):
+    _a = ad_a.value
+    _b = ad_b.value
+    _t = np.linspace(-4, 4, 4000)
+    _f = np.linspace(-4, 4, 500)
+    _dt = _t[1] - _t[0]
+
+    _x1 = rect(_t, 1.0)
+    _x2 = tri(_t, 1.0)
+    _y = _a * _x1 + _b * _x2
+
+    _X1 = rect_ft(_f, 1.0)
+    _X2 = tri_ft(_f, 1.0)
+    _Y = _a * _X1 + _b * _X2
+
+    # Direct numerical transform of y(t) (y is even, so the transform is real: integral of y*cos)
+    _Ynum = (_y[None, :] * np.cos(2 * np.pi * _f[:, None] * _t[None, :])).sum(axis=1) * _dt
+
+    _fig, _ax = plt.subplots(1, 2, figsize=(13, 4))
+
+    _ax[0].plot(_t, _a * _x1, color="C0", alpha=0.7, label=r"$a\,x_1(t)$")
+    _ax[0].plot(_t, _b * _x2, color="C1", alpha=0.7, label=r"$b\,x_2(t)$")
+    _ax[0].plot(_t, _y, color="k", linewidth=2, label=r"$y(t)=a\,x_1+b\,x_2$")
+    _ax[0].set_title("Time domain")
+    _ax[0].set_xlabel("t (s)")
+    _ax[0].set_ylim(-4.3, 4.3)
+    _ax[0].legend(loc="upper right", fontsize=8)
+
+    _ax[1].plot(_f, _a * _X1, color="C0", alpha=0.7, label=r"$a\,X_1(f)$")
+    _ax[1].plot(_f, _b * _X2, color="C1", alpha=0.7, label=r"$b\,X_2(f)$")
+    _ax[1].plot(_f, _Y, color="k", linewidth=2, label=r"$a\,X_1+b\,X_2$")
+    _ax[1].plot(_f[::6], _Ynum[::6], "o", color="C3", markersize=4, label="numerical FT of y(t)")
+    _ax[1].set_title("Frequency domain (both transforms are real here)")
+    _ax[1].set_xlabel("f (Hz)")
+    _ax[1].set_ylim(-4.3, 4.3)
+    _ax[1].legend(loc="upper right", fontsize=8)
+
+    for _a_ in _ax:
+        _a_.grid(alpha=0.3)
+    _fig.tight_layout()
+    _fig
+    return
+
+
+@app.cell
+def _(mo):
+    mo.callout(
+        mo.md(
+            r"""
+            **What to observe**
+
+            - The red dots (a direct transform of the summed signal) always land on the black curve
+              ($aX_1 + bX_2$), for every choice of $a$ and $b$. This is linearity.
+            - **Scaling by a constant:** doubling $a$ doubles the entire blue spectrum, but its *shape* does not change.
+              A negative coefficient flips the spectrum upside down.
+            - **Setting $a=0$** leaves only the triangle's spectrum, and **setting $b=0$** leaves only the rectangle's.
+            - **Cancellation:** the rectangle and triangle both have area 1, so $X_1(0) = X_2(0) = 1$.
+              With $a = 1$, $b = -1$ the sum has zero area, so the combined spectrum is **0 at $f = 0$**.
+            - The sum's spectrum is built point by point: at each frequency, add the two heights. Notice the
+              triangle's spectrum ($\mathrm{sinc}^2$) dies out faster than the rectangle's, so at high frequencies
+              the sum looks like just the rectangle's contribution.
+            """
+        ),
+        kind="info",
+    )
+    return
+
+
+# ---------------------------------------------------------------------------
+# 2. Scaling
+# ---------------------------------------------------------------------------
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+        ---
+        ## 2. Scaling (pulse width)
+
+        **Definition.** Compressing a signal in time stretches its spectrum in frequency, and vice versa:
+
+        $$x(at) \;\Longleftrightarrow\; \frac{1}{|a|}\,X\!\left(\frac{f}{a}\right)$$
+
+        Here the reference pulse is $\mathrm{rect}(t)$ (width 1), whose transform is $\mathrm{sinc}(f)$.
+        Choosing pulse width $T = 1/a$ gives
+
+        $$\mathrm{rect}(t/T) \;\Longleftrightarrow\; T\,\mathrm{sinc}(fT).$$
+
+        The first zero of the spectrum is at $f = 1/T$, and the peak value is $X(0) = T$ (the area under the pulse).
+        """
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    sc_width = mo.ui.slider(0.25, 4.0, step=0.05, value=2.0, label="Pulse width T (s)", show_value=True)
+    sc_width
+    return (sc_width,)
+
+
+@app.cell
+def _(mo, np, plt, rect, rect_ft, sc_width):
+    _T = sc_width.value
+    _t = np.linspace(-4, 4, 3000)
+    _f = np.linspace(-6, 6, 3000)
+
+    _fig, _ax = plt.subplots(1, 2, figsize=(12, 3.8))
+
+    _ax[0].plot(_t, rect(_t, 1.0), "--", color="gray", label="reference: width 1")
+    _ax[0].plot(_t, rect(_t, _T), color="C0", label=f"width T = {_T:.2f}")
+    _ax[0].set_title("Time domain")
+    _ax[0].set_xlabel("t (s)")
+    _ax[0].set_ylim(-0.1, 1.3)
+    _ax[0].legend(loc="upper right")
+
+    _ax[1].plot(_f, rect_ft(_f, 1.0), "--", color="gray", label="reference spectrum")
+    _ax[1].plot(_f, rect_ft(_f, _T), color="C0", label=r"$T\,\mathrm{sinc}(fT)$")
+    _ax[1].axvline(1 / _T, color="C0", linestyle=":", alpha=0.7)
+    _ax[1].axvline(-1 / _T, color="C0", linestyle=":", alpha=0.7)
+    _ax[1].set_title("Spectrum X(f)  (dotted = first zeros at ±1/T)")
+    _ax[1].set_xlabel("f (Hz)")
+    _ax[1].set_ylim(-1.2, 4.3)
+    _ax[1].legend(loc="upper right")
+
+    for _a in _ax:
+        _a.grid(alpha=0.3)
+    _fig.tight_layout()
+
+    mo.vstack(
+        [
+            mo.md(
+                f"**T = {_T:.2f} s** &nbsp;→&nbsp; first zero at 1/T = **{1/_T:.2f} Hz**, "
+                f"peak X(0) = T = **{_T:.2f}**, &nbsp; (T × first-zero frequency = 1)"
+            ),
+            _fig,
+        ]
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.callout(
+        mo.md(
+            r"""
+            **What to observe**
+
+            - **Narrow pulse → wide spectrum.** Decrease $T$: the main lobe of the sinc gets wider
+              (first zero at $1/T$ moves outward) but its peak gets *lower* ($X(0)=T$).
+            - **Wide pulse → narrow spectrum.** Increase $T$: the spectrum squeezes toward $f = 0$ and its peak grows.
+            - The product (pulse width) × (main-lobe half-width) is always 1. You cannot make a signal
+              short in time *and* narrow in frequency at the same time (the time-bandwidth tradeoff).
+            - Check the readout above the plots: the peak equals the pulse area, and the zero location is $1/T$.
+            """
+        ),
+        kind="info",
+    )
+    return
+
+
+# ---------------------------------------------------------------------------
+# 3. Time shift
+# ---------------------------------------------------------------------------
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+        ---
+        ## 3. Time shift
 
         **Definition.** Delaying a signal by $t_0$ seconds does not change the *magnitude*
         of its spectrum. It only adds a phase that is linear in frequency:
@@ -159,17 +372,17 @@ def _(mo):
 
 
 # ---------------------------------------------------------------------------
-# 2. Frequency-shift (modulation) theorem
+# 4. Frequency shift
 # ---------------------------------------------------------------------------
 @app.cell
 def _(mo):
     mo.md(
         r"""
         ---
-        ## 2. Frequency-shift (modulation) theorem
+        ## 4. Frequency shift (modulation)
 
         **Definition.** Multiplying by a complex exponential in time shifts the spectrum in frequency
-        (the dual of the time-shift theorem):
+        (the dual of the time-shift property):
 
         $$x(t)\,e^{j2\pi f_0 t} \;\Longleftrightarrow\; X(f - f_0)$$
 
@@ -239,7 +452,7 @@ def _(mo):
               Larger $|f_0|$ gives faster oscillation: about $f_0 T$ cycles fit inside the pulse.
             - The real and imaginary parts are a cosine and a sine at $f_0$. Changing the sign of $f_0$ swaps
               which one leads, and moves the spectrum to negative frequencies.
-            - Compare with Section 1: a shift in **time** gives a **phase** change, while a shift in
+            - Compare with Section 3: a shift in **time** gives a **phase** change, while a shift in
               **frequency** gives a **modulation** in time. The two properties are duals.
             """
         ),
@@ -249,25 +462,28 @@ def _(mo):
 
 
 # ---------------------------------------------------------------------------
-# 3. Time scaling
+# 5. Rayleigh's theorem
 # ---------------------------------------------------------------------------
 @app.cell
 def _(mo):
     mo.md(
         r"""
         ---
-        ## 3. Scaling (pulse width) property
+        ## 5. Rayleigh's energy theorem
 
-        **Definition.** Compressing a signal in time stretches its spectrum in frequency, and vice versa:
+        **Definition.** The total energy of a signal can be computed in either domain, and the answer is the same:
 
-        $$x(at) \;\Longleftrightarrow\; \frac{1}{|a|}\,X\!\left(\frac{f}{a}\right)$$
+        $$\int_{-\infty}^{\infty} |x(t)|^2\,dt \;=\; \int_{-\infty}^{\infty} |X(f)|^2\,df .$$
 
-        Here the reference pulse is $\mathrm{rect}(t)$ (width 1), whose transform is $\mathrm{sinc}(f)$.
-        Choosing pulse width $T = 1/a$ gives
+        $|x(t)|^2$ is the *energy density in time*, and $|X(f)|^2$ is the *energy spectral density*
+        (energy per Hz). For the rectangular pulse $\mathrm{rect}(t/T)$:
 
-        $$\mathrm{rect}(t/T) \;\Longleftrightarrow\; T\,\mathrm{sinc}(fT).$$
+        $$\text{time domain: } \int |x(t)|^2dt = T,
+        \qquad
+        \text{frequency domain: } \int T^2\mathrm{sinc}^2(fT)\,df = T.$$
 
-        The first zero of the spectrum is at $f = 1/T$, and the peak value is $X(0) = T$ (the area under the pulse).
+        The theorem also lets us ask *where in frequency* the energy lives. The energy within
+        $|f| \le B$ is $\int_{-B}^{B}|X(f)|^2\,df$.
         """
     )
     return
@@ -275,34 +491,43 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    sc_width = mo.ui.slider(0.25, 4.0, step=0.05, value=2.0, label="Pulse width T (s)", show_value=True)
-    sc_width
-    return (sc_width,)
+    ry_width = mo.ui.slider(0.25, 4.0, step=0.05, value=1.0, label="Pulse width T (s)", show_value=True)
+    ry_band = mo.ui.slider(0.1, 6.0, step=0.1, value=1.0, label="Band limit B (Hz)", show_value=True)
+    mo.hstack([ry_width, ry_band], justify="start", gap=2)
+    return ry_band, ry_width
 
 
 @app.cell
-def _(mo, np, plt, rect, rect_ft, sc_width):
-    _T = sc_width.value
-    _t = np.linspace(-4, 4, 3000)
-    _f = np.linspace(-6, 6, 3000)
+def _(integrate, mo, np, plt, rect, rect_ft, ry_band, ry_width):
+    _T = ry_width.value
+    _B = ry_band.value
+
+    _t = np.linspace(-5, 5, 4000)
+    _f = np.linspace(-8, 8, 4000)
+
+    # Energy computed numerically in each domain
+    _tt = np.linspace(-10, 10, 200001)
+    _E_time = integrate(rect(_tt, _T) ** 2, _tt)
+
+    _ff = np.linspace(-500, 500, 400001)
+    _E_freq = integrate(rect_ft(_ff, _T) ** 2, _ff)
+
+    _fb = np.linspace(-_B, _B, 20001)
+    _E_band = integrate(rect_ft(_fb, _T) ** 2, _fb)
 
     _fig, _ax = plt.subplots(1, 2, figsize=(12, 3.8))
 
-    _ax[0].plot(_t, rect(_t, 1.0), "--", color="gray", label="reference: width 1")
-    _ax[0].plot(_t, rect(_t, _T), color="C0", label=f"width T = {_T:.2f}")
-    _ax[0].set_title("Time domain")
+    _ax[0].fill_between(_t, rect(_t, _T) ** 2, color="C0", alpha=0.4)
+    _ax[0].plot(_t, rect(_t, _T) ** 2, color="C0")
+    _ax[0].set_title(rf"$|x(t)|^2$: area = {_E_time:.3f}")
     _ax[0].set_xlabel("t (s)")
     _ax[0].set_ylim(-0.1, 1.3)
-    _ax[0].legend(loc="upper right")
 
-    _ax[1].plot(_f, rect_ft(_f, 1.0), "--", color="gray", label="reference spectrum")
-    _ax[1].plot(_f, rect_ft(_f, _T), color="C0", label=r"$T\,\mathrm{sinc}(fT)$")
-    _ax[1].axvline(1 / _T, color="C0", linestyle=":", alpha=0.7)
-    _ax[1].axvline(-1 / _T, color="C0", linestyle=":", alpha=0.7)
-    _ax[1].set_title("Spectrum X(f)  (dotted = first zeros at ±1/T)")
+    _ax[1].plot(_f, rect_ft(_f, _T) ** 2, color="C3")
+    _ax[1].fill_between(_f, rect_ft(_f, _T) ** 2, where=np.abs(_f) <= _B, color="C3", alpha=0.4)
+    _ax[1].set_title(rf"$|X(f)|^2$: shaded = energy in $|f|\leq B$ = {_E_band:.3f}")
     _ax[1].set_xlabel("f (Hz)")
-    _ax[1].set_ylim(-1.2, 4.3)
-    _ax[1].legend(loc="upper right")
+    _ax[1].set_ylim(-0.5, 16.5)
 
     for _a in _ax:
         _a.grid(alpha=0.3)
@@ -311,8 +536,9 @@ def _(mo, np, plt, rect, rect_ft, sc_width):
     mo.vstack(
         [
             mo.md(
-                f"**T = {_T:.2f} s** &nbsp;→&nbsp; first zero at 1/T = **{1/_T:.2f} Hz**, "
-                f"peak X(0) = T = **{_T:.2f}**, &nbsp; (T × first-zero frequency = 1)"
+                f"**Energy from time domain:** {_E_time:.3f} &nbsp;|&nbsp; "
+                f"**Energy from frequency domain (all f):** {_E_freq:.3f} &nbsp;|&nbsp; "
+                f"**Fraction of energy inside |f| ≤ {_B:.1f} Hz:** {100*_E_band/_E_freq:.1f}%"
             ),
             _fig,
         ]
@@ -327,222 +553,17 @@ def _(mo):
             r"""
             **What to observe**
 
-            - **Narrow pulse → wide spectrum.** Decrease $T$: the main lobe of the sinc gets wider
-              (first zero at $1/T$ moves outward) but its peak gets *lower* ($X(0)=T$).
-            - **Wide pulse → narrow spectrum.** Increase $T$: the spectrum squeezes toward $f = 0$ and its peak grows.
-            - The product (pulse width) × (main-lobe half-width) is always 1. You cannot make a signal
-              short in time *and* narrow in frequency at the same time (the time-bandwidth tradeoff).
-            - Check the dynamic readout above the plots: the peak equals the pulse area, and the zero location is $1/T$.
-            """
-        ),
-        kind="info",
-    )
-    return
-
-
-# ---------------------------------------------------------------------------
-# 4. Filtering (convolution <-> multiplication)
-# ---------------------------------------------------------------------------
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-        ---
-        ## 4. Filtering (convolution property)
-
-        **Definition.** Passing a signal through an LTI filter with impulse response $h(t)$ is a
-        *convolution* in time, which becomes a simple *multiplication* in frequency:
-
-        $$y(t) = (x * h)(t) \;\Longleftrightarrow\; Y(f) = H(f)\,X(f).$$
-
-        We use **ideal** (brick-wall) filters with cutoff $f_c$:
-
-        $$H_{\text{LP}}(f)=\begin{cases}1 & |f|\le f_c\\ 0 & \text{else}\end{cases}\qquad
-        H_{\text{HP}}(f)=\begin{cases}0 & |f|< f_c\\ 1 & \text{else}\end{cases}\qquad
-        H_{\text{BP}}(f)=\begin{cases}1 & \big||f|-f_c\big|\le 3\,\text{Hz}\\ 0 & \text{else}\end{cases}$$
-
-        **The test signal** is a 2 Hz square wave (which contains the odd harmonics 2, 6, 10, 14, … Hz)
-        plus random noise (which contains *all* frequencies). The spectrum is drawn on a log scale so the
-        noise floor is visible.
-        """
-    )
-    return
-
-
-@app.cell
-def _(np):
-    # Shared test signal for the filtering demo: 4 seconds sampled at 200 Hz.
-    fs_hz = 200.0
-    n_samples = 800
-    t_sig = np.arange(n_samples) / fs_hz
-    _rng = np.random.default_rng(1)
-    x_sig = np.sign(np.sin(2 * np.pi * 2.0 * (t_sig + 0.5 / fs_hz))) + 0.5 * _rng.standard_normal(n_samples)
-    return fs_hz, n_samples, t_sig, x_sig
-
-
-@app.cell
-def _(mo):
-    fl_type = mo.ui.dropdown(["Low-pass", "High-pass", "Band-pass"], value="Low-pass", label="Filter type")
-    fl_cutoff = mo.ui.slider(1.0, 50.0, step=0.5, value=10.0, label="Filter cutoff / center f_c (Hz)", show_value=True)
-    mo.hstack([fl_type, fl_cutoff], justify="start", gap=2)
-    return fl_cutoff, fl_type
-
-
-@app.cell
-def _(fl_cutoff, fl_type, fs_hz, n_samples, np, plt, t_sig, x_sig):
-    _fc = fl_cutoff.value
-    _kind = fl_type.value
-
-    _X = np.fft.rfft(x_sig)
-    _f = np.fft.rfftfreq(n_samples, 1 / fs_hz)
-
-    if _kind == "Low-pass":
-        _H = (_f <= _fc).astype(float)
-    elif _kind == "High-pass":
-        _H = (_f >= _fc).astype(float)
-    else:  # Band-pass: passband is f_c +/- 3 Hz
-        _H = (np.abs(_f - _fc) <= 3.0).astype(float)
-
-    _Y = _H * _X
-    _y = np.fft.irfft(_Y, n=n_samples)
-
-    _amp_x = np.maximum(2 * np.abs(_X) / n_samples, 1e-6)
-    _amp_y = np.maximum(2 * np.abs(_Y) / n_samples, 1e-6)
-
-    _fig, _ax = plt.subplots(1, 2, figsize=(13, 4))
-
-    _m = t_sig <= 2.0
-    _ax[0].plot(t_sig[_m], x_sig[_m], color="gray", alpha=0.6, linewidth=1, label="input x(t)")
-    _ax[0].plot(t_sig[_m], _y[_m], color="C0", linewidth=2, label="output y(t)")
-    _ax[0].set_title(f"Time domain ({_kind}, f_c = {_fc:g} Hz)")
-    _ax[0].set_xlabel("t (s)")
-    _ax[0].set_ylim(-3, 3)
-    _ax[0].legend(loc="upper right")
-
-    _ax[1].semilogy(_f, _amp_x, color="gray", alpha=0.6, linewidth=1, label="|X(f)| input")
-    _ax[1].semilogy(_f, _amp_y, color="C0", linewidth=1.5, label="|Y(f)| = |H(f)||X(f)| output")
-    _ax[1].fill_between(_f, 1e-3, 2.5, where=_H > 0, color="C1", alpha=0.15, label="filter passband H(f)=1")
-    _ax[1].set_xlim(0, 60)
-    _ax[1].set_ylim(1e-3, 2.5)
-    _ax[1].set_title("Spectrum (positive frequencies, log scale)")
-    _ax[1].set_xlabel("f (Hz)")
-    _ax[1].legend(loc="upper right", fontsize=8)
-
-    for _a in _ax:
-        _a.grid(alpha=0.3)
-    _fig.tight_layout()
-    _fig
-    return
-
-
-@app.cell
-def _(mo):
-    mo.callout(
-        mo.md(
-            r"""
-            **What to observe**
-
-            - **Spectrum:** the output spectrum is the input spectrum *multiplied* by the orange passband.
-              Everything inside is unchanged. Everything outside is removed (it drops to the bottom of the plot).
-            - **Low-pass:** with a cutoff around 10 Hz the noise disappears and the output looks like a smoothed
-              square wave. Push the cutoff down to ~3 Hz and only the 2 Hz fundamental survives, so the
-              output is a sine wave. Raise it to 50 Hz and the output gets closer to the original, noise included.
-            - **Ringing:** near the square-wave edges you should see overshoot and ripples. This is the Gibbs phenomenon,
-              caused by the sharp (ideal) cutoff.
-            - **High-pass:** removes the square wave and keeps mostly noise plus the highest harmonics.
-              The output has zero average, and its edges look like short spikes.
-            - **Band-pass:** only harmonics within ±3 Hz of $f_c$ survive. Move $f_c$ onto 2, 6, 10, … Hz to
-              "pick out" individual harmonics, and between them (e.g. 4 Hz) to see only noise.
-            """
-        ),
-        kind="info",
-    )
-    return
-
-
-# ---------------------------------------------------------------------------
-# 5. 2D Fourier transform
-# ---------------------------------------------------------------------------
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-        ---
-        ## 5. The 2D Fourier transform (separability)
-
-        **Definition.** For an image $g(x,y)$ the 2D transform is
-
-        $$G(f_x, f_y) = \iint g(x,y)\, e^{-j2\pi (f_x x + f_y y)}\, dx\, dy .$$
-
-        If the image is **separable**, $g(x,y) = g_1(x)\,g_2(y)$, the 2D transform is just the product
-        of two 1D transforms: $G(f_x,f_y) = G_1(f_x)\,G_2(f_y)$. For a rectangle of width $W$ (in $x$) and
-        height $H$ (in $y$):
-
-        $$\mathrm{rect}\!\left(\tfrac{x}{W}\right)\mathrm{rect}\!\left(\tfrac{y}{H}\right)
-        \;\Longleftrightarrow\; WH\,\mathrm{sinc}(f_x W)\,\mathrm{sinc}(f_y H).$$
-
-        The scaling property from Section 3 now applies **independently along each axis**.
-        """
-    )
-    return
-
-
-@app.cell
-def _(mo):
-    td_x = mo.ui.slider(0.5, 4.0, step=0.1, value=2.0, label="Pulse width / x-width W", show_value=True)
-    td_y = mo.ui.slider(0.5, 4.0, step=0.1, value=1.0, label="2D y-width H", show_value=True)
-    mo.hstack([td_x, td_y], justify="start", gap=2)
-    return td_x, td_y
-
-
-@app.cell
-def _(np, plt, rect, td_x, td_y):
-    _W = td_x.value
-    _H = td_y.value
-
-    _xs = np.linspace(-4, 4, 400)
-    _X, _Y = np.meshgrid(_xs, _xs)
-    _img = rect(_X, _W) * rect(_Y, _H)
-
-    _fs = np.linspace(-3, 3, 400)
-    _FX, _FY = np.meshgrid(_fs, _fs)
-    _G = np.abs(np.sinc(_FX * _W) * np.sinc(_FY * _H))  # normalised by W*H
-
-    _fig, _ax = plt.subplots(1, 2, figsize=(11, 4.6))
-
-    _ax[0].imshow(_img, extent=[-4, 4, -4, 4], origin="lower", cmap="gray", vmin=0, vmax=1)
-    _ax[0].set_title(f"Image g(x, y): {_W:.1f} × {_H:.1f}")
-    _ax[0].set_xlabel("x")
-    _ax[0].set_ylabel("y")
-
-    _im = _ax[1].imshow(_G**0.5, extent=[-3, 3, -3, 3], origin="lower", cmap="viridis", vmin=0, vmax=1)
-    _ax[1].set_title(r"$\sqrt{|G(f_x,f_y)|/(WH)}$  (sqrt makes sidelobes visible)")
-    _ax[1].set_xlabel(r"$f_x$ (Hz)")
-    _ax[1].set_ylabel(r"$f_y$ (Hz)")
-
-    _fig.tight_layout()
-    _fig
-    return
-
-
-@app.cell
-def _(mo):
-    mo.callout(
-        mo.md(
-            r"""
-            **What to observe**
-
-            - **Wider in $x$ → narrower in $f_x$.** Increase the x-width and the bright pattern squeezes
-              *horizontally*. Increase the y-width and it squeezes *vertically*. The two directions
-              are independent.
-            - A wide, short rectangle (e.g. W = 4, H = 0.5) produces a tall, thin spectrum pattern: the
-              spectrum is elongated in the **opposite** direction from the image.
-            - The spectrum is a **grid of lobes**: the bright center, with a cross of bright bars along the
-              $f_x$ and $f_y$ axes, and a checkerboard of weaker lobes in between. This
-              is the product $\mathrm{sinc}(f_xW)\cdot\mathrm{sinc}(f_yH)$.
-            - The dark lines are at $f_x = k/W$ and $f_y = k/H$ (zeros of each sinc). Check that they move
-              as you change each slider.
-            - Set $W = H$: the image is a square and the spectrum is symmetric under swapping $f_x \leftrightarrow f_y$.
+            - **Rayleigh's theorem:** the two energy numbers above the plots always match
+              (both equal $T$), no matter how you change the pulse width. Small differences in the third decimal
+              place come from numerically integrating a finite range.
+            - **Scaling connection:** as $T$ gets small, the pulse's energy $T$ gets small, and the
+              spectrum $|X(f)|^2$ gets *lower* but *wider*. As $T$ grows, $|X(f)|^2$ becomes a tall, narrow spike
+              at $f=0$. The area under the red curve tracks the area in the time domain either way.
+            - **Where the energy lives:** for $T = 1$, the main lobe ($|f| \le 1$ Hz) already contains about 90%
+              of the energy. Increase $B$ and watch the percentage climb toward 100%. The sidelobes
+              carry very little energy each.
+            - Make the pulse narrower and the fraction inside a fixed $B$ drops: a short pulse needs a larger bandwidth
+              to capture the same share of its energy.
             """
         ),
         kind="info",
