@@ -94,34 +94,3 @@ def _(concept, width, shift, cutoff, kind, ywidth, np, plt, mo, t, f, ft, ift, r
         c = cutoff.value
         if kind.value == "Low-pass": H = (abs(f) <= c).astype(float)
         elif kind.value == "High-pass": H = (abs(f) >= c).astype(float)
-        else: H = ((abs(f) >= c) & (abs(f) <= c+3)).astype(float)
-        output = ift(Y*H).real
-        a1.plot(t, y); a1.set_xlim(-2, 2); a1.set_title("Original: 1 Hz + 6 Hz")
-        a2.plot(f, abs(Y), label="Before"); a2.plot(f, abs(Y*H), '--', label="After")
-        a2.set_xlim(-10, 10); a2.legend(); a2.set_title("Magnitude spectra")
-        a3.plot(f, H); a3.set_xlim(-10, 10); a3.set_ylim(-0.1, 1.1); a3.set_title(f"{kind.value} H(f)")
-        a4.plot(t, output); a4.set_xlim(-2, 2); a4.set_title("Filtered signal")
-        note = r"Filtering in frequency: $Y(f)=H(f)X(f)$. Compare which sinusoidal components remain."
-    else:
-        n = 128
-        u = np.linspace(-4, 4, n, endpoint=False)
-        xx, yy = np.meshgrid(u, u)
-        image = rect(xx/width.value)*rect(yy/ywidth.value)
-        transform = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(image)))
-        one_x = np.fft.fftshift(np.fft.fft(np.fft.ifftshift(rect(u/width.value))))
-        one_y = np.fft.fftshift(np.fft.fft(np.fft.ifftshift(rect(u/ywidth.value))))
-        separate = np.outer(one_y, one_x)
-        fx = np.fft.fftshift(np.fft.fftfreq(n, d=u[1]-u[0]))
-        ext = [fx[0], fx[-1], fx[0], fx[-1]]
-        a1.imshow(image, extent=[-4,4,-4,4], origin="lower", cmap="gray"); a1.set_title("Separable 2D rectangle")
-        for ax, data, title in [(a2, abs(transform), "Magnitude of 2D FFT"), (a3, abs(separate), "Product of 1D FFTs"), (a4, abs(transform-separate), "Numerical difference")]:
-            ax.imshow(data, extent=ext, origin="lower"); ax.set_xlim(-5,5); ax.set_ylim(-5,5); ax.set_title(title)
-        note = r"For $g(x,y)=a(x)b(y)$, the 2D Fourier transform is $G(f_x,f_y)=A(f_x)B(f_y)$."
-    for ax in axes.flat:
-        ax.tick_params(labelsize=9)
-    mo.vstack([mo.md(note), fig])
-    plt.close(fig)
-    return
-
-if __name__ == "__main__":
-    app.run()
